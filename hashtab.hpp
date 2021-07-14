@@ -25,11 +25,11 @@
 
 typedef unsigned long _SP_ulong;
 
-template <typename VTYPE = void *>
+template <typename VTYPE = std::string>
 class _SP_Bucket
 {
 public:
-    char *key;
+    std::string key;
     VTYPE value;
     _SP_Bucket<VTYPE> *next;
 };
@@ -42,7 +42,7 @@ typedef struct _SP_Index {
 
 namespace SP {
 
-template <typename VTYPE = void *>
+template <typename VTYPE = std::string>
 class Hashtab
 {
 public:
@@ -81,7 +81,7 @@ public:
      //
      // Maybe it doesn't work well, because this is the first time I design
      // the algorithm.
-    _SP_Index hash(char *key)
+    _SP_Index hash(std::string key)
     {
         // Compute average number
         _SP_ulong sum = 0;
@@ -121,13 +121,13 @@ public:
     }
 
        
-    void insert(char *key, VTYPE value)
+    void insert(std::string key, VTYPE value)
     {
-        this->keyset.insert(std::string(key));
+        this->keyset.insert(key);
 
         _SP_Index ind = this->hash(key);
         if (ind.chain_index == 0) {
-            if (this->buckets[ind.bkt_index].key == 0)
+            if (this->buckets[ind.bkt_index].key.empty())
                 this->ele_num++;            // Add to the counter
 
             this->buckets[ind.bkt_index].key = key;
@@ -139,7 +139,7 @@ public:
             for (;;) {
                 cur = cur->next;
                 if (cur->next == 0) {
-                    if (cur->key == 0)
+                    if (cur->key.empty())
                         this->ele_num++;    // Add to the counter
 
                     cur->key = key;
@@ -152,7 +152,7 @@ public:
         return;
     }
 
-    VTYPE get(char *key)
+    VTYPE get(std::string key)
     {
         VTYPE ret;
         _SP_Index ind = this->hash(key);
@@ -172,13 +172,13 @@ public:
         }
     }
 
-    Hashtab &operator[](char *key)
+    Hashtab &operator[](std::string key)
     {
         this->temp_key = key;
         return (*this);
     }
 
-    VTYPE operator()(char *key)
+    VTYPE operator()(std::string key)
     {
         return this->get(key);
     }
@@ -204,14 +204,14 @@ private:
 
      // Secondary probe and rehash.
      // After 5 times rehash, use chaining algorithm.
-    _SP_Index check_and_rehash(_SP_ulong tent, char *key)
+    _SP_Index check_and_rehash(_SP_ulong tent, std::string key)
     {
         _SP_Index ret;
         ret.bkt_index = tent;
         ret.chain_index = 0;
 
-        if (this->buckets[ret.bkt_index].key == 0
-            || !strcmp(this->buckets[ret.bkt_index].key, key)) {
+        if (this->buckets[ret.bkt_index].key.empty()
+            || this->buckets[ret.bkt_index].key == key) {
             ;
         } else {
             for (int i = 1; i <= 5; i++) {
@@ -223,8 +223,8 @@ private:
                     if (ret.bkt_index < 0 
                         || ret.bkt_index >= this->bkt_size)
                         continue;
-                    if (this->buckets[ret.bkt_index].key == 0
-                        || !strcmp(this->buckets[ret.bkt_index].key, key))
+                    if (this->buckets[ret.bkt_index].key.empty()
+                        || this->buckets[ret.bkt_index].key == key)
                         goto out;
                 }
             }
@@ -246,7 +246,7 @@ private:
     _SP_ulong ele_num;
     double max_load_factor;
 
-    char *temp_key;             // For index insert (operator)
+    std::string temp_key;             // For index insert (operator)
 };
 
 };      // namespace
