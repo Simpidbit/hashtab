@@ -9,6 +9,8 @@
  * of rehashing must be less then 5, or will use chaining instead.
  */
 
+#define DEBUG
+
 #ifndef _SP_HASHTAB_H
 #define _SP_HASHTAB_H
 
@@ -19,74 +21,111 @@
 #include <set>
 #include <string>
 
-// 1024 * 1024 buckets
-#define _SP_HTAB_BKT_DEFAULT_LEN (1024 * 1024)
+// 1024 * 1024 * 2 buckets
+#define _SP_HTAB_BKT_DEFAULT_LEN (1024 * 1024 * 2)
 #define _SP_HTAB_MAX_LOAD_FACTOR (0.75)
-
-typedef unsigned long _SP_ulong;
-
-template <typename VTYPE = std::string>
-class _SP_Bucket
-{
-public:
-    std::string key;
-    VTYPE value;
-    _SP_Bucket<VTYPE> *next;
-};
-
-typedef struct _SP_Index {
-    _SP_ulong bkt_index;
-    _SP_ulong chain_index;
-} _SP_Index;
 
 
 namespace SP {
+    typedef unsigned long _SP_ulong;
 
-template <typename VTYPE = std::string>
-class Hashtab
-{
-public:
-    std::set<std::string> keyset;
+    template <typename Vtype = std::string>
+    class _SP_Bucket
+    {
+        public:
+            std::string key;
+            Vtype value;
+            SP::_SP_Bucket<Vtype> *next;
+    };
 
-    Hashtab()
+    typedef struct _SP_Index {
+        SP::_SP_ulong bkt_index;
+        SP::_SP_ulong chain_index;
+    } _SP_Index;
+
+
+
+    template <typename Vtype = std::string>
+    class Hashtab
+    {
+        public:
+            std::set<std::string> keyset;
+
+            Hashtab();
+            Hashtab(SP::_SP_ulong length, double max_load_fac = _SP_HTAB_MAX_LOAD_FACTOR);
+            ~Hashtab();
+
+            SP::_SP_Index hash(std::string key);
+            void set(std::string key, Vtype value);
+            Vtype get(std::string key);
+        
+        private:
+            // little-endian
+            static SP::_SP_ulong bin_to_ulong(unsigned char *binlist, SP::_SP_ulong length)
+            {
+                SP::_SP_ulong num = 0;
+                for (SP::_SP_ulong i = 0; i < length; i++) {
+                    if (binlist[i] == 1) {
+                        num += pow((double)2.0, (double)i);
+                    }
+                }
+                return num;
+            }
+
+            SP::_SP_Index check_and_rehash(SP::_SP_ulong tent, std::string key);
+
+            SP::_SP_Bucket<Vtype> *buckets;
+            SP::_SP_ulong bkt_size;
+            SP::_SP_ulong ele_num;
+            double max_load_factor;
+    };
+}
+
+namespace SP {
+    template <typename Vtype>
+    Hashtab<Vtype>::Hashtab()
     {
         this->bkt_size = _SP_HTAB_BKT_DEFAULT_LEN;
-        this->buckets = new _SP_Bucket<VTYPE>[this->bkt_size];
+        this->buckets = new SP::_SP_Bucket<Vtype>[this->bkt_size];
 
         this->max_load_factor = _SP_HTAB_MAX_LOAD_FACTOR;
     }
 
-    Hashtab(_SP_ulong length, double max_load_fac = _SP_HTAB_MAX_LOAD_FACTOR)
-            :bkt_size(length), max_load_factor(max_load_fac)
+    template <typename Vtype>
+    Hashtab<Vtype>::Hashtab(SP::_SP_ulong length, double max_load_fac)
+        :bkt_size(length), max_load_factor(max_load_fac)
     {
-        this->buckets = new _SP_Bucket<VTYPE>[this->bkt_size];
+        this->buckets = new SP::_SP_Bucket<Vtype>[this->bkt_size];
     }
 
-    ~Hashtab()
+    template <typename Vtype>
+    Hashtab<Vtype>::~Hashtab()
     {
         delete[] this->buckets;
     }
 
-     // Compute average number of characters, compute the offsets of each
-     // characters by average number. If offset is positive, then set the
-     // character into 0b1. If offset is negative or 0, then set the character
-     // into 0b0. At last there will be a binary number list, fill the number
-     // list with 0b0 until the length of list is multiple of 8, transform
-     // the binary list into an unsigned int, times (average number / 10),
-     // mod by length of buckets, so it is the index.
-     //
-     // If there is a bucket clashing with the index, use secondary probe and
-     // rehash algorithm (less than 4 times). Afert 4 times of rehashing, if
-     // there is still a bucket clashing, so use the chaining algorithm.
-     //
-     // Maybe it doesn't work well, because this is the first time I design
-     // the algorithm.
-    _SP_Index hash(std::string key)
+
+    // Compute average number of characters, compute the offsets of each
+    // characters by average number. If offset is positive, then set the
+    // character into 0b1. If offset is negative or 0, then set the character
+    // into 0b0. At last there will be a binary number list, fill the number
+    // list with 0b0 until the length of list is multiple of 8, transform
+    // the binary list into an unsigned int, times (average number / 10),
+    // mod by length of buckets, so it is the index.
+    //
+    // If there is a bucket clashing with the index, use secondary probe and
+    // rehash algorithm (less than 4 times). Afert 4 times of rehashing, if
+    // there is still a bucket clashing, so use the chaining algorithm.
+    //
+    // Maybe it doesn't work well, because this is the first time I design
+    // the algorithm.
+    template <typename Vtype>
+    SP::_SP_Index Hashtab<Vtype>::hash(std::string key)
     {
         // Compute average number
-        _SP_ulong sum = 0;
-        _SP_ulong keylen = 0;
-        _SP_ulong averg = 0;
+        SP::_SP_ulong sum = 0;
+        SP::_SP_ulong keylen = 0;
+        SP::_SP_ulong averg = 0;
         for (int i = 0; key[i] != '\0'; i++) {
             sum += key[i];
             keylen++;
@@ -105,7 +144,7 @@ public:
         }
 
         // Fill list.
-        _SP_ulong newlen = 0;
+        SP::_SP_ulong newlen = 0;
         if (char mod = (keylen % 8))
             newlen = keylen + mod;
         else
@@ -115,17 +154,17 @@ public:
 
         delete[] binlist;
 
-        _SP_ulong inum = (this->bin_to__SP_ulong(newlist, newlen) * averg + sum);
+        SP::_SP_ulong inum = (this->bin_to_ulong(newlist, newlen) * averg + sum);
 
         return this->check_and_rehash(inum % this->bkt_size, key);
     }
 
-       
-    void insert(std::string key, VTYPE value)
+    template <typename Vtype>
+    void Hashtab<Vtype>::set(std::string key, Vtype value)
     {
         this->keyset.insert(key);
 
-        _SP_Index ind = this->hash(key);
+        SP::_SP_Index ind = this->hash(key);
         if (ind.chain_index == 0) {
             if (this->buckets[ind.bkt_index].key.empty())
                 this->ele_num++;            // Add to the counter
@@ -134,7 +173,7 @@ public:
             this->buckets[ind.bkt_index].value = value;
             goto out;
         } else {
-            _SP_Bucket<VTYPE> *cur = &this->buckets[ind.bkt_index];
+            SP::_SP_Bucket<Vtype> *cur = &this->buckets[ind.bkt_index];
             assert(cur->next != 0);
             for (;;) {
                 cur = cur->next;
@@ -152,61 +191,30 @@ public:
         return;
     }
 
-    VTYPE get(std::string key)
+    template <typename Vtype>
+    Vtype Hashtab<Vtype>::get(std::string key)
     {
-        VTYPE ret;
-        _SP_Index ind = this->hash(key);
+        Vtype ret;
+        SP::_SP_Index ind = this->hash(key);
         if (ind.chain_index == 0) {
             ret = this->buckets[ind.bkt_index].value;
             return ret;
         } else {
-            _SP_Bucket<VTYPE> *cur = &this->buckets[ind.bkt_index];
+            SP::_SP_Bucket<Vtype> *cur = &this->buckets[ind.bkt_index];
             assert(cur->next != 0);
-            for (;;) {
+            for (SP::_SP_ulong i = 1; i < ind.chain_index; i++) {
                 cur = cur->next;
-                if (cur->next == 0) {
-                    ret = cur->value;
-                    return ret;
-                }
             }
+            return cur->value;
         }
     }
 
-    Hashtab &operator[](std::string key)
+    // Secondary probe and rehash.
+    // After 5 times rehash, use chaining algorithm.
+    template <typename Vtype>
+    SP::_SP_Index Hashtab<Vtype>::check_and_rehash(SP::_SP_ulong tent, std::string key)
     {
-        this->temp_key = key;
-        return (*this);
-    }
-
-    VTYPE operator()(std::string key)
-    {
-        return this->get(key);
-    }
-
-    void operator=(VTYPE value)
-    {
-        this->insert(this->temp_key, value);
-        return;
-    }
-
-private:
-    // little-endian
-    static _SP_ulong bin_to__SP_ulong(unsigned char *binlist, _SP_ulong length)
-    {
-        _SP_ulong num = 0;
-        for (_SP_ulong i = 0; i < length; i++) {
-            if (binlist[i] == 1) {
-                num += pow((double)2.0, (double)i);
-            }
-        }
-        return num;
-    }
-
-     // Secondary probe and rehash.
-     // After 5 times rehash, use chaining algorithm.
-    _SP_Index check_and_rehash(_SP_ulong tent, std::string key)
-    {
-        _SP_Index ret;
+        SP::_SP_Index ret;
         ret.bkt_index = tent;
         ret.chain_index = 0;
 
@@ -231,7 +239,7 @@ private:
             // Chaining
             for (int i = 1; ; i++) {
                 if (this->buckets[ret.bkt_index].next == 0) {
-                    this->buckets[ret.bkt_index].next = new _SP_Bucket<VTYPE>;
+                    this->buckets[ret.bkt_index].next = new SP::_SP_Bucket<Vtype>;
                     ret.chain_index = i;
                     goto out;
                 }
@@ -240,14 +248,46 @@ private:
     out:;
         return ret;
     }
+}
 
-    _SP_Bucket<VTYPE> *buckets;
-    _SP_ulong bkt_size;
-    _SP_ulong ele_num;
-    double max_load_factor;
 
-    std::string temp_key;             // For index insert (operator)
-};
+#if defined(DEBUG)
+/*
+ * A simple hash-table.
+ *
+ * Copyright (C) 2021 Simpidbit Isaiah.
+ *     Author: Simpidbit Isaiah <8155530@gmail.com>
+ *
+ * Use secondary probe and rehash algorithm mainly, but the times 
+ * of rehashing must be less then 5, or will use chaining instead.
+ */
 
-};      // namespace
+#include <iostream>
+#include <stdio.h>
+#include <string.h>
+#include <string>
+#include <math.h>
+
+int main()
+{
+    SP::Hashtab<std::string> tab;
+    for (;;) {
+        std::string key;
+        std::string value;
+
+        std::cin >> key;
+        std::cin >> value;
+
+        //tab.insert(key, value);
+        tab.set(key, value);
+        auto ind = tab.hash(key);
+        std::cout << "键: " << key << " --- " << "值: " << value << std::endl;
+        std::cout << "散列下标: " << ind.bkt_index << " " << ind.chain_index << std::endl;
+        std::cout << "GET: " << tab.get(key) << std::endl;
+        std::cout << std::endl;
+    }
+    return 0;
+}
+#endif
+
 #endif
