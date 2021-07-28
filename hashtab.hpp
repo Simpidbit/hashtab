@@ -40,7 +40,6 @@ namespace SP {
 
     typedef struct _SP_Index {
         SP::_SP_ulong bkt_index;
-        SP::_SP_ulong chain_index;
     } _SP_Index;
 
 
@@ -165,28 +164,12 @@ namespace SP {
         this->keyset.insert(key);
 
         SP::_SP_Index ind = this->hash(key);
-        if (ind.chain_index == 0) {
             if (this->buckets[ind.bkt_index].key.empty())
                 this->ele_num++;            // Add to the counter
 
             this->buckets[ind.bkt_index].key = key;
             this->buckets[ind.bkt_index].value = value;
             goto out;
-        } else {
-            SP::_SP_Bucket<Vtype> *cur = &this->buckets[ind.bkt_index];
-            assert(cur->next != 0);
-            for (;;) {
-                cur = cur->next;
-                if (cur->next == 0) {
-                    if (cur->key.empty())
-                        this->ele_num++;    // Add to the counter
-
-                    cur->key = key;
-                    cur->value = value;
-                    goto out;
-                }
-            }
-        }
     out:;
         return;
     }
@@ -196,17 +179,8 @@ namespace SP {
     {
         Vtype ret;
         SP::_SP_Index ind = this->hash(key);
-        if (ind.chain_index == 0) {
-            ret = this->buckets[ind.bkt_index].value;
-            return ret;
-        } else {
-            SP::_SP_Bucket<Vtype> *cur = &this->buckets[ind.bkt_index];
-            assert(cur->next != 0);
-            for (SP::_SP_ulong i = 1; i < ind.chain_index; i++) {
-                cur = cur->next;
-            }
-            return cur->value;
-        }
+        ret = this->buckets[ind.bkt_index].value;
+        return ret;
     }
 
     // Secondary probe and rehash.
@@ -216,13 +190,12 @@ namespace SP {
     {
         SP::_SP_Index ret;
         ret.bkt_index = tent;
-        ret.chain_index = 0;
 
         if (this->buckets[ret.bkt_index].key.empty()
             || this->buckets[ret.bkt_index].key == key) {
             ;
         } else {
-            for (int i = 1; i <= 5; i++) {
+            for (int i = 0; ; i++) {
             int flag = 1;
                 for (int j = 0; j < 2; j++) {
                     ret.bkt_index = ret.bkt_index + pow((double)i, 2.0) * flag;
@@ -236,58 +209,11 @@ namespace SP {
                         goto out;
                 }
             }
-            // Chaining
-            for (int i = 1; ; i++) {
-                if (this->buckets[ret.bkt_index].next == 0) {
-                    this->buckets[ret.bkt_index].next = new SP::_SP_Bucket<Vtype>;
-                    ret.chain_index = i;
-                    goto out;
-                }
-            }
         }
     out:;
         return ret;
     }
 }
 
-
-#if defined(DEBUG)
-/*
- * A simple hash-table.
- *
- * Copyright (C) 2021 Simpidbit Isaiah.
- *     Author: Simpidbit Isaiah <8155530@gmail.com>
- *
- * Use secondary probe and rehash algorithm mainly, but the times 
- * of rehashing must be less then 5, or will use chaining instead.
- */
-
-#include <iostream>
-#include <stdio.h>
-#include <string.h>
-#include <string>
-#include <math.h>
-
-int main()
-{
-    SP::Hashtab<std::string> tab;
-    for (;;) {
-        std::string key;
-        std::string value;
-
-        std::cin >> key;
-        std::cin >> value;
-
-        //tab.insert(key, value);
-        tab.set(key, value);
-        auto ind = tab.hash(key);
-        std::cout << "键: " << key << " --- " << "值: " << value << std::endl;
-        std::cout << "散列下标: " << ind.bkt_index << " " << ind.chain_index << std::endl;
-        std::cout << "GET: " << tab.get(key) << std::endl;
-        std::cout << std::endl;
-    }
-    return 0;
-}
-#endif
 
 #endif
