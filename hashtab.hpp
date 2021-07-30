@@ -20,6 +20,7 @@
 #include <math.h>
 #include <set>
 #include <string>
+#include <vector>
 
 // 1024 * 1024 * 2 buckets
 #define _SP_HTAB_BKT_DEFAULT_LEN (1024 * 1024 * 2)
@@ -192,24 +193,38 @@ namespace SP {
         ret.bkt_index = tent;
 
         if (this->buckets[ret.bkt_index].key.empty()
-            || this->buckets[ret.bkt_index].key == key) {
+         || this->buckets[ret.bkt_index].key == key) {
             ;
         } else {
+            std::vector<SP::_SP_ulong> hashs;
+            SP::_SP_ulong vecnt = 0;
             for (int i = 0; ; i++) {
             int flag = 1;
                 for (int j = 0; j < 2; j++) {
                     ret.bkt_index = ret.bkt_index + pow((double)i, 2.0) * flag;
+                    hashs.push_back(ret.bkt_index);
                     flag = -flag;
 
                     if (ret.bkt_index < 0 
-                        || ret.bkt_index >= this->bkt_size)
-                        continue;
+                     || ret.bkt_index >= this->bkt_size) {
+                        if (vecnt == 0) {
+                            ret.bkt_index = tent;
+                        } else {
+                            ret.bkt_index = hashs[vecnt - 1];
+                        }
+                    }
+
+
                     if (this->buckets[ret.bkt_index].key.empty()
                         || this->buckets[ret.bkt_index].key == key)
                         goto out;
+
+                    vecnt++;
                 }
             }
         }
+    chain:
+        /* TODO */
     out:;
         return ret;
     }
